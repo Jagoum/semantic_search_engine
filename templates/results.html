@@ -1,28 +1,17 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Search Results - Semantic Search System</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
+{% extends "layout.html" %}
+{% block title %}Search Results - Semantic Search{% endblock %}
+{% block content %}
     <div class="container">
-        <a href="/" class="back-button">← Back to Search</a>
-        
         <div class="header">
             <h1>🔍 Search Results</h1>
             <p class="query-info">Query: "{{ query }}" | Collection: {{ collection_name }}</p>
         </div>
-        
         <div class="ai-response">
             <h3>🤖 AI Response</h3>
             <p>{{ ai_response }}</p>
         </div>
-        
         <div class="results-section">
             <h3>📄 Search Results ({{ results|length }} found)</h3>
-            
             {% if results %}
                 {% for result in results %}
                 <div class="result-item">
@@ -41,5 +30,4 @@
             {% endif %}
         </div>
     </div>
-</body>
-</html> 
+{% endblock %} 

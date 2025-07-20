@@ -5,7 +5,7 @@ FastAPI web application for semantic search using Qdrant and Groq AI.
 from fastapi import FastAPI, Request, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 import uvicorn
 from dotenv import load_dotenv
 import os
@@ -124,6 +124,58 @@ async def api_search(query: str, collection_name: str = "knowledge_base"):
         "search_results": results,
         "ai_response": ai_response
     }
+
+@app.get("/create-collection", response_class=HTMLResponse)
+async def create_collection_form(request: Request):
+    return templates.TemplateResponse("create_collection.html", {"request": request})
+
+@app.post("/create-collection")
+async def create_collection(request: Request, collection_name: str = Form(...), vector_size: int = Form(384)):
+    # Check if collection already exists
+    existing_collections = [c.name for c in client.get_collections().collections]
+    if collection_name in existing_collections:
+        msg = f"Collection '{collection_name}' already exists."
+        return templates.TemplateResponse("create_collection.html", {"request": request, "message": msg, "success": False})
+    # Create collection
+    client.create_collection(
+        collection_name=collection_name,
+        vectors_config=models.VectorParams(size=vector_size, distance=models.Distance.COSINE)
+    )
+    msg = f"Collection '{collection_name}' created successfully!"
+    return templates.TemplateResponse("create_collection.html", {"request": request, "message": msg, "success": True})
+
+@app.get("/add-document", response_class=HTMLResponse)
+async def add_document_form(request: Request):
+    # Get all collections for dropdown
+    collections = [c.name for c in client.get_collections().collections]
+    return templates.TemplateResponse("add_document.html", {"request": request, "collections": collections})
+
+@app.post("/add-document")
+async def add_document(request: Request, collection_name: str = Form(...), text: str = Form(...), category: str = Form(...)):
+    # Embed text
+    embedding = embedder.encode(text)
+    # Get next ID
+    points = client.scroll(collection_name=collection_name, limit=100, with_payload=False, with_vectors=False)
+    if points and points[0]:
+        max_id = max(int(point.id) for point in points[0])
+        next_id = max_id + 1
+    else:
+        next_id = 1
+    # Upsert document
+    client.upsert(
+        collection_name=collection_name,
+        points=[
+            models.PointStruct(
+                id=next_id,
+                vector=embedding.tolist(),
+                payload={"text": text, "category": category}
+            )
+        ]
+    )
+    msg = f"Document added to '{collection_name}' with ID {next_id}."
+    # Get all collections for dropdown
+    collections = [c.name for c in client.get_collections().collections]
+    return templates.TemplateResponse("add_document.html", {"request": request, "collections": collections, "message": msg, "success": True})
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000) 
