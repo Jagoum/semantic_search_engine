@@ -135,10 +135,10 @@ def query_groq_with_context(prompt, search_results, max_tokens=200):
 
 # Example prompt for the language model
 prompt = input("Enter your prompt: ")
+# Query the Groq AI model using vector search results as context
 query_groq_with_context(prompt, search_result)
 
 # prompt = """
 # What tools should I need to use to build a web service using vector embeddings for search?
 # """
 # print(f"Prompt: {prompt}")
-# Query the Groq AI model using vector search results as context

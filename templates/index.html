@@ -11,8 +11,9 @@
             <div class="form-group">
                 <label for="collection_name">Collection:</label>
                 <select name="collection_name" id="collection_name" required>
-                    <option value="knowledge_base">knowledge_base</option>
-                    <!-- Add more collections as needed -->
+                    {% for c in collections %}
+                        <option value="{{ c }}">{{ c }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="form-group">

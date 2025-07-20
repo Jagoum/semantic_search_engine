@@ -40,7 +40,11 @@ templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Initialize Qdrant, embedding, and Groq clients
-client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+client = QdrantClient(
+    url=QDRANT_URL,
+    api_key=QDRANT_API_KEY,
+    timeout=120.0  # Set timeout to 120 seconds (or higher if needed)
+)
 embedder = SentenceTransformer("BAAI/bge-small-en-v1.5")
 groq_client = Groq(api_key=GROQ_API_KEY)
 
@@ -102,7 +106,8 @@ def extract_pdf_chunks(file, chunk_size=500) -> List[str]:
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Home page with search interface."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    collections = [c.name for c in client.get_collections().collections]
+    return templates.TemplateResponse("index.html", {"request": request, "collections": collections})
 
 @app.post("/search")
 async def search_endpoint(request: Request, query: str = Form(...), collection_name: str = Form("knowledge_base")):
@@ -229,19 +234,24 @@ async def upload_pdf(request: Request, collection_name: str = Form(...), file: U
         next_id = max_id + 1
     else:
         next_id = 1
-    # Embed and upsert each chunk
+    # Batch upsert chunks
+    batch_size = 20
+    batch = []
     for i, chunk in enumerate(chunks):
         embedding = embedder.encode(chunk)
-        client.upsert(
-            collection_name=collection_name,
-            points=[
-                models.PointStruct(
-                    id=next_id + i,
-                    vector=embedding.tolist(),
-                    payload={"text": chunk, "source": file.filename, "chunk": i}
-                )
-            ]
+        batch.append(
+            models.PointStruct(
+                id=next_id + i,
+                vector=embedding.tolist(),
+                payload={"text": chunk, "source": file.filename, "chunk": i}
+            )
         )
+        if len(batch) == batch_size or i == len(chunks) - 1:
+            client.upsert(
+                collection_name=collection_name,
+                points=batch
+            )
+            batch = []
     msg = f"Uploaded and indexed {len(chunks)} chunks from '{file.filename}' into '{collection_name}'."
     return templates.TemplateResponse("upload_pdf.html", {"request": request, "collections": collections, "message": msg, "success": True, "chunks": len(chunks), "filename": file.filename})
 
