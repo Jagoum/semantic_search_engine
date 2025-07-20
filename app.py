@@ -13,7 +13,7 @@ Requirements:
 - requests, qdrant_client, sentence-transformers, groq, pypdf, fastapi, uvicorn, jinja2, python-multipart, python-dotenv
 """
 
-from fastapi import FastAPI, Request, Form, UploadFile
+from fastapi import FastAPI, Request, Form, UploadFile, Cookie, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -26,6 +26,8 @@ from groq import Groq
 from pydantic import BaseModel
 from typing import List
 from pypdf import PdfReader
+import uuid
+import time
 
 # Load environment variables
 load_dotenv()
@@ -254,6 +256,135 @@ async def upload_pdf(request: Request, collection_name: str = Form(...), file: U
             batch = []
     msg = f"Uploaded and indexed {len(chunks)} chunks from '{file.filename}' into '{collection_name}'."
     return templates.TemplateResponse("upload_pdf.html", {"request": request, "collections": collections, "message": msg, "success": True, "chunks": len(chunks), "filename": file.filename})
+
+@app.get("/chat", response_class=HTMLResponse)
+async def chat_page(request: Request, session_id: str = Cookie(None)):
+    collections = [c.name for c in client.get_collections().collections]
+    # Generate a new session_id if not present
+    if not session_id:
+        session_id = str(uuid.uuid4())
+    response = templates.TemplateResponse("chat.html", {"request": request, "collections": collections, "history": [], "session_id": session_id})
+    response.set_cookie(key="session_id", value=session_id, httponly=True)
+    return response
+
+@app.post("/chat", response_class=HTMLResponse)
+async def chat_post(request: Request, collection_name: str = Form(...), user_message: str = Form(...), history: str = Form("[]"), session_id: str = Cookie(None)):
+    import json
+    collections = [c.name for c in client.get_collections().collections]
+    # Parse chat history
+    chat_history = json.loads(history)
+    # Vector search for user message
+    query_embedding = embedder.encode(user_message)
+    search_result = client.search(
+        collection_name=collection_name,
+        query_vector=query_embedding.tolist(),
+        limit=5
+    )
+    # Build context from search results (no explicit reference to documents)
+    context = ""
+    for i, hit in enumerate(search_result, 1):
+        if hit.payload:
+            context += f"{hit.payload.get('text', 'N/A')}\n"
+    # System prompt to restrict bot to context only
+    system_prompt = "You are a helpful assistant. Only answer using the provided information. If you don't know, say you don't know."
+    # Build full prompt
+    full_prompt = f"{system_prompt}\n\n{context}\n\nUser: {user_message}\nAssistant:"
+    response = groq_client.chat.completions.create(
+        model="llama3-8b-8192",
+        messages=[{"role": "user", "content": full_prompt}],
+        max_tokens=200,
+        temperature=0.2,
+    )
+    ai_response = response.choices[0].message.content
+    # Update chat history
+    chat_history.append({"user": user_message, "bot": ai_response})
+    # Store chat turn in Qdrant chat_history collection
+    if not session_id:
+        session_id = str(uuid.uuid4())
+    timestamp = int(time.time())
+    embedding = embedder.encode(user_message)
+    # Ensure chat_history collection exists
+    if "chat_history" not in [c.name for c in client.get_collections().collections]:
+        client.create_collection(
+            collection_name="chat_history",
+            vectors_config=models.VectorParams(size=embedding.shape[0], distance=models.Distance.COSINE)
+        )
+    client.upsert(
+        collection_name="chat_history",
+        points=[
+            models.PointStruct(
+                id=str(uuid.uuid4()),  # Use a valid UUID string
+                vector=embedding.tolist(),
+                payload={
+                    "session_id": session_id,
+                    "user_message": user_message,
+                    "bot_response": ai_response,
+                    "timestamp": timestamp,
+                    "collection": collection_name
+                }
+            )
+        ]
+    )
+    response = templates.TemplateResponse(
+        "chat.html",
+        {
+            "request": request,
+            "collections": collections,
+            "collection_name": collection_name,
+            "history": chat_history,
+            "session_id": session_id
+        }
+    )
+    response.set_cookie(key="session_id", value=session_id, httponly=True)
+    return response
+
+@app.get("/chat-history", response_class=HTMLResponse)
+async def chat_history_page(request: Request, session_id: str = Cookie(None)):
+    # Get all sessions from chat_history collection
+    if "chat_history" not in [c.name for c in client.get_collections().collections]:
+        sessions = []
+    else:
+        points = client.scroll(collection_name="chat_history", limit=1000, with_payload=True, with_vectors=False)
+        sessions = {}
+        for point in points[0]:
+            payload = point.payload
+            if payload is not None:
+                sid = payload.get("session_id")
+                if sid not in sessions:
+                    sessions[sid] = {
+                        "session_id": sid,
+                        "first_message": payload.get("user_message", ""),
+                        "timestamp": payload.get("timestamp", 0)
+                    }
+        # Sort by timestamp (descending)
+        sessions = sorted(sessions.values(), key=lambda x: -x["timestamp"])
+    return templates.TemplateResponse("chat_history.html", {"request": request, "sessions": sessions, "current_session": session_id})
+
+@app.get("/chat-session/{session_id}", response_class=HTMLResponse)
+async def chat_session_page(request: Request, session_id: str):
+    # Load chat history for a session
+    collections = [c.name for c in client.get_collections().collections]
+    points = client.scroll(collection_name="chat_history", limit=1000, with_payload=True, with_vectors=False)
+    history = []
+    collection_name = None
+    for point in sorted(points[0], key=lambda p: p.payload.get("timestamp", 0) if p.payload else 0):
+        payload = point.payload
+        if payload is not None and payload.get("session_id") == session_id:
+            history.append({"user": payload.get("user_message", ""), "bot": payload.get("bot_response", "")})
+            if not collection_name:
+                collection_name = payload.get("collection")
+    response = templates.TemplateResponse(
+        "chat.html",
+        {
+            "request": request,
+            "collections": collections,
+            "collection_name": collection_name or (collections[0] if collections else None),
+            "history": history,
+            "session_id": session_id
+        }
+    )
+    response.set_cookie(key="session_id", value=session_id, httponly=True)
+    return response
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000) 
