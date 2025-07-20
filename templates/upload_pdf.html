@@ -1,0 +1,33 @@
+{% extends "layout.html" %}
+{% block title %}Upload PDF - Semantic Search{% endblock %}
+{% block content %}
+    <div class="container">
+        <h1>📄 Upload PDF</h1>
+        <form class="search-form" method="POST" action="/upload-pdf" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="collection_name">Collection:</label>
+                <select name="collection_name" id="collection_name" required>
+                    {% for c in collections %}
+                        <option value="{{ c }}">{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="file">PDF File:</label>
+                <input type="file" name="file" id="file" accept="application/pdf" required>
+            </div>
+            <button type="submit">Upload & Index PDF</button>
+        </form>
+        {% if message %}
+            <div style="margin-top:1.5rem; color: {{ 'green' if success else 'red' }}; text-align:center; font-weight:600;">
+                {{ message }}
+                {% if success %}
+                    <br>File: <b>{{ filename }}</b> | Chunks indexed: <b>{{ chunks }}</b>
+                {% endif %}
+            </div>
+        {% endif %}
+        <div style="margin-top:2rem; text-align:center;">
+            <a href="/create-collection">Create Collection</a> | <a href="/add-document">Add Document</a> | <a href="/">Search</a>
+        </div>
+    </div>
+{% endblock %} 
