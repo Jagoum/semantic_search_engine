@@ -21,7 +21,7 @@ collection_name = input("Enter the Qdrant collection name: ").strip()
 client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 
 # Ask if user wants to create a new collection
-if not client.collection_exists(collection_name):
+if collection_name not in [c.name for c in client.get_collections().collections]:
     create = input(f"Collection '{collection_name}' does not exist. Create it? (y/n): ").strip().lower()
     if create == 'y':
         # Ask for vector size (default 384 for BAAI/bge-small-en-v1.5)
