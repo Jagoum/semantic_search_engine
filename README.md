@@ -79,3 +79,4 @@ All features are accessible from the hamburger menu.
 
 ## License
 MIT 
+Link to presentation: https://g.co/gemini/share/4a2285dbda2b

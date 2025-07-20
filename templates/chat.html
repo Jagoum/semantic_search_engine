@@ -1,0 +1,47 @@
+{% extends "layout.html" %}
+{% block title %}Chat - Semantic Search{% endblock %}
+{% block content %}
+    <div class="container" style="max-width: 700px;">
+        <h1>💬 Semantic Chat</h1>
+        <form class="search-form" method="POST" action="/chat" style="margin-bottom: 1.5rem;">
+            <div class="form-group">
+                <label for="collection_name">Collection:</label>
+                <select name="collection_name" id="collection_name" required>
+                    {% for c in collections %}
+                        <option value="{{ c }}" {% if collection_name == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                <input type="text" name="user_message" id="user_message" placeholder="Type your message..." required autocomplete="off" style="flex:1;">
+                <button type="submit">Send</button>
+            </div>
+            <input type="hidden" name="history" value='{{ history|tojson }}'>
+        </form>
+        <div id="chat-history" style="background: #f8f9fa; border-radius: 10px; padding: 1.5rem; min-height: 200px;">
+            {% if history %}
+                {% for turn in history %}
+                    <div style="margin-bottom: 1.2rem;">
+                        <div style="text-align: right;">
+                            <span style="display: inline-block; background: #667eea; color: white; padding: 0.6rem 1rem; border-radius: 18px 18px 2px 18px; margin-bottom: 0.2rem; max-width: 80%; word-break: break-word;">{{ turn.user }}</span>
+                        </div>
+                        <div style="text-align: left;">
+                            <span style="display: inline-block; background: #e1e5e9; color: #333; padding: 0.6rem 1rem; border-radius: 18px 18px 18px 2px; max-width: 80%; word-break: break-word;">{{ turn.bot }}</span>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div style="color: #888; text-align: center;">Start the conversation by asking a question!</div>
+            {% endif %}
+        </div>
+    </div>
+    <script>
+        // Auto-scroll chat history to bottom
+        var chatHistory = document.getElementById('chat-history');
+        if (chatHistory) {
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+        // Focus input on page load
+        document.getElementById('user_message').focus();
+    </script>
+{% endblock %} 

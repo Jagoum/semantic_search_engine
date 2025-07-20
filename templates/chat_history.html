@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+{% block title %}Chat History - Semantic Search{% endblock %}
+{% block content %}
+    <div class="container" style="max-width: 700px;">
+        <h1>🕑 Chat History</h1>
+        {% if sessions %}
+            <ul style="list-style: none; padding: 0;">
+                {% for session in sessions %}
+                <li style="margin-bottom: 1.2rem;">
+                    <a href="/chat-session/{{ session.session_id }}" style="display: block; padding: 1rem; border-radius: 8px; background: {% if session.session_id == current_session %}#667eea; color: white;{% else %}#f8f9fa; color: #333;{% endif %} text-decoration: none; font-weight: 500;">
+                        <span style="font-size: 0.95rem;">Session: {{ session.session_id[:8] }}...</span><br>
+                        <span style="font-size: 1.1rem;">{{ session.first_message|truncate(60) }}</span><br>
+                        <span style="font-size: 0.85rem; color: #888;">{{ session.timestamp | datetimeformat }}</span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <div style="color: #888; text-align: center;">No chat history found.</div>
+        {% endif %}
+    </div>
+    {% macro datetimeformat(ts) %}{{ ts | int | datetime.fromtimestamp | string }}{% endmacro %}
+{% endblock %} 
