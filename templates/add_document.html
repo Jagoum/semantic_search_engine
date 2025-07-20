@@ -1,0 +1,34 @@
+{% extends "layout.html" %}
+{% block title %}Add Document - Semantic Search{% endblock %}
+{% block content %}
+    <div class="container">
+        <h1>➕ Add Document</h1>
+        <form class="search-form" method="POST" action="/add-document">
+            <div class="form-group">
+                <label for="collection_name">Collection:</label>
+                <select name="collection_name" id="collection_name" required>
+                    {% for c in collections %}
+                        <option value="{{ c }}">{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="text">Text:</label>
+                <input type="text" name="text" id="text" required placeholder="Enter document text">
+            </div>
+            <div class="form-group">
+                <label for="category">Category:</label>
+                <input type="text" name="category" id="category" required placeholder="Enter category">
+            </div>
+            <button type="submit">Add Document</button>
+        </form>
+        {% if message %}
+            <div style="margin-top:1.5rem; color: {{ 'green' if success else 'red' }}; text-align:center; font-weight:600;">
+                {{ message }}
+            </div>
+        {% endif %}
+        <div style="margin-top:2rem; text-align:center;">
+            <a href="/create-collection">Create Collection</a> | <a href="/">Search</a>
+        </div>
+    </div>
+{% endblock %} 

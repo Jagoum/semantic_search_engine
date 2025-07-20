@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Semantic Search System{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .navbar {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.5rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+        }
+        .navbar-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        .nav-links {
+            display: flex;
+            gap: 1.5rem;
+        }
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 1rem;
+            transition: color 0.2s;
+        }
+        .nav-link:hover {
+            color: #ffe082;
+        }
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            cursor: pointer;
+            gap: 5px;
+        }
+        .bar {
+            width: 28px;
+            height: 3px;
+            background: white;
+            border-radius: 2px;
+        }
+        @media (max-width: 700px) {
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 60px;
+                right: 1.5rem;
+                background: #667eea;
+                flex-direction: column;
+                gap: 0;
+                width: 180px;
+                border-radius: 8px;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+                z-index: 100;
+            }
+            .nav-links.open {
+                display: flex;
+            }
+            .nav-link {
+                padding: 1rem;
+                border-bottom: 1px solid #764ba2;
+            }
+            .hamburger {
+                display: flex;
+            }
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <span class="navbar-title">Semantic Search</span>
+        <div class="nav-links" id="navLinks">
+            <a href="/" class="nav-link">Search</a>
+            <a href="/create-collection" class="nav-link">Create Collection</a>
+            <a href="/add-document" class="nav-link">Add Document</a>
+        </div>
+        <div class="hamburger" id="hamburger" onclick="toggleMenu()">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+    </nav>
+    <div style="max-width: 100vw;">
+        {% block content %}{% endblock %}
+    </div>
+    <script>
+        function toggleMenu() {
+            var navLinks = document.getElementById('navLinks');
+            navLinks.classList.toggle('open');
+        }
+        // Close menu on click outside (for mobile UX)
+        document.addEventListener('click', function(event) {
+            var navLinks = document.getElementById('navLinks');
+            var hamburger = document.getElementById('hamburger');
+            if (!navLinks.contains(event.target) && !hamburger.contains(event.target)) {
+                navLinks.classList.remove('open');
+            }
+        });
+    </script>
+</body>
+</html> 
