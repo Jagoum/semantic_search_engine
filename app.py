@@ -1,8 +1,19 @@
 """
 FastAPI web application for semantic search using Qdrant and Groq AI.
+Features:
+- Search existing collections using semantic search and LLM answers
+- Create new Qdrant collections
+- Add documents to collections
+- Upload and index PDF files (extract, chunk, embed, and store in Qdrant)
+
+Requirements:
+- Qdrant cloud instance and API key
+- Groq AI API key
+- .env file with all secrets
+- requests, qdrant_client, sentence-transformers, groq, pypdf, fastapi, uvicorn, jinja2, python-multipart, python-dotenv
 """
 
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, UploadFile
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -13,6 +24,8 @@ from qdrant_client import QdrantClient, models
 from sentence_transformers import SentenceTransformer
 from groq import Groq
 from pydantic import BaseModel
+from typing import List
+from pypdf import PdfReader
 
 # Load environment variables
 load_dotenv()
@@ -26,7 +39,7 @@ app = FastAPI(title="Semantic Search System")
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Initialize clients
+# Initialize Qdrant, embedding, and Groq clients
 client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 embedder = SentenceTransformer("BAAI/bge-small-en-v1.5")
 groq_client = Groq(api_key=GROQ_API_KEY)
@@ -37,31 +50,26 @@ class SearchRequest(BaseModel):
 
 def search_and_query_groq(query: str, collection_name: str = "knowledge_base"):
     """
-    Perform semantic search and get AI response.
+    Perform semantic search in Qdrant and get an LLM answer from Groq.
     """
     # Check if collection exists
     if collection_name not in [c.name for c in client.get_collections().collections]:
         return [], "Collection not found. Please create and populate the collection first."
-    
     # Generate embedding for query
     query_embedding = embedder.encode(query)
-    
     # Search in Qdrant
     search_result = client.search(
         collection_name=collection_name,
         query_vector=query_embedding.tolist(),
         limit=5
     )
-    
     # Build context from search results
     context = "Based on the following relevant documents:\n\n"
     for i, hit in enumerate(search_result, 1):
         if hit.payload:
             context += f"{i}. {hit.payload.get('text', 'N/A')}\n"
-    
     # Create the full prompt with context
     full_prompt = f"{context}\n\nQuestion: {query}\n\nAnswer based on the documents above:"
-    
     # Query Groq AI
     response = groq_client.chat.completions.create(
         model="llama3-8b-8192",
@@ -70,8 +78,26 @@ def search_and_query_groq(query: str, collection_name: str = "knowledge_base"):
         temperature=0.3,
     )
     ai_response = response.choices[0].message.content
-    
     return search_result, ai_response
+
+def extract_pdf_chunks(file, chunk_size=500) -> List[str]:
+    """
+    Extract text from a PDF file and split it into chunks of a given size.
+    Args:
+        file: A file-like object containing the PDF.
+        chunk_size: Number of characters per chunk.
+    Returns:
+        List of text chunks.
+    """
+    reader = PdfReader(file)
+    all_text = ""
+    for page in reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            all_text += page_text + "\n"
+    # Split into chunks (e.g., every 500 characters)
+    chunks = [all_text[i:i+chunk_size] for i in range(0, len(all_text), chunk_size) if all_text[i:i+chunk_size].strip()]
+    return chunks
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -82,7 +108,6 @@ async def home(request: Request):
 async def search_endpoint(request: Request, query: str = Form(...), collection_name: str = Form("knowledge_base")):
     """Handle search requests."""
     search_results, ai_response = search_and_query_groq(query, collection_name)
-    
     # Format results for display
     formatted_results = []
     for i, hit in enumerate(search_results, 1):
@@ -92,7 +117,6 @@ async def search_endpoint(request: Request, query: str = Form(...), collection_n
             "text": hit.payload.get('text', 'N/A') if hit.payload else 'N/A',
             "category": hit.payload.get('category', 'N/A') if hit.payload else 'N/A'
         })
-    
     return templates.TemplateResponse(
         "results.html", 
         {
@@ -108,7 +132,6 @@ async def search_endpoint(request: Request, query: str = Form(...), collection_n
 async def api_search(query: str, collection_name: str = "knowledge_base"):
     """API endpoint for programmatic access."""
     search_results, ai_response = search_and_query_groq(query, collection_name)
-    
     # Format for JSON response
     results = []
     for hit in search_results:
@@ -117,7 +140,6 @@ async def api_search(query: str, collection_name: str = "knowledge_base"):
             "text": hit.payload.get('text', 'N/A') if hit.payload else 'N/A',
             "category": hit.payload.get('category', 'N/A') if hit.payload else 'N/A'
         })
-    
     return {
         "query": query,
         "collection": collection_name,
@@ -127,16 +149,16 @@ async def api_search(query: str, collection_name: str = "knowledge_base"):
 
 @app.get("/create-collection", response_class=HTMLResponse)
 async def create_collection_form(request: Request):
+    """Show form to create a new Qdrant collection."""
     return templates.TemplateResponse("create_collection.html", {"request": request})
 
 @app.post("/create-collection")
 async def create_collection(request: Request, collection_name: str = Form(...), vector_size: int = Form(384)):
-    # Check if collection already exists
+    """Create a new Qdrant collection with the given name and vector size."""
     existing_collections = [c.name for c in client.get_collections().collections]
     if collection_name in existing_collections:
         msg = f"Collection '{collection_name}' already exists."
         return templates.TemplateResponse("create_collection.html", {"request": request, "message": msg, "success": False})
-    # Create collection
     client.create_collection(
         collection_name=collection_name,
         vectors_config=models.VectorParams(size=vector_size, distance=models.Distance.COSINE)
@@ -146,22 +168,21 @@ async def create_collection(request: Request, collection_name: str = Form(...), 
 
 @app.get("/add-document", response_class=HTMLResponse)
 async def add_document_form(request: Request):
-    # Get all collections for dropdown
+    """Show form to add a document to a collection."""
     collections = [c.name for c in client.get_collections().collections]
     return templates.TemplateResponse("add_document.html", {"request": request, "collections": collections})
 
 @app.post("/add-document")
 async def add_document(request: Request, collection_name: str = Form(...), text: str = Form(...), category: str = Form(...)):
-    # Embed text
+    """Add a document (text + category) to a collection, embedding it and assigning a new ID."""
     embedding = embedder.encode(text)
-    # Get next ID
+    # Get next available ID
     points = client.scroll(collection_name=collection_name, limit=100, with_payload=False, with_vectors=False)
     if points and points[0]:
         max_id = max(int(point.id) for point in points[0])
         next_id = max_id + 1
     else:
         next_id = 1
-    # Upsert document
     client.upsert(
         collection_name=collection_name,
         points=[
@@ -173,9 +194,56 @@ async def add_document(request: Request, collection_name: str = Form(...), text:
         ]
     )
     msg = f"Document added to '{collection_name}' with ID {next_id}."
-    # Get all collections for dropdown
     collections = [c.name for c in client.get_collections().collections]
     return templates.TemplateResponse("add_document.html", {"request": request, "collections": collections, "message": msg, "success": True})
+
+@app.get("/upload-pdf", response_class=HTMLResponse)
+async def upload_pdf_form(request: Request):
+    """Show form to upload a PDF and select a collection."""
+    collections = [c.name for c in client.get_collections().collections]
+    return templates.TemplateResponse("upload_pdf.html", {"request": request, "collections": collections})
+
+@app.post("/upload-pdf", response_class=HTMLResponse)
+async def upload_pdf(request: Request, collection_name: str = Form(...), file: UploadFile = Form(...)):
+    """
+    Handle PDF upload, extract and chunk text, embed each chunk, and store in Qdrant.
+    Args:
+        collection_name: The collection to store the PDF chunks in.
+        file: The uploaded PDF file.
+    Returns:
+        Rendered template with upload summary.
+    """
+    collections = [c.name for c in client.get_collections().collections]
+    if file is None or not getattr(file, 'filename', '').lower().endswith(".pdf"):
+        msg = "Please upload a valid PDF file."
+        return templates.TemplateResponse("upload_pdf.html", {"request": request, "collections": collections, "message": msg, "success": False})
+    # Read and process PDF
+    contents = await file.read()
+    import io
+    pdf_file = io.BytesIO(contents)
+    chunks = extract_pdf_chunks(pdf_file)
+    # Get next available ID
+    points = client.scroll(collection_name=collection_name, limit=100, with_payload=False, with_vectors=False)
+    if points and points[0]:
+        max_id = max(int(point.id) for point in points[0])
+        next_id = max_id + 1
+    else:
+        next_id = 1
+    # Embed and upsert each chunk
+    for i, chunk in enumerate(chunks):
+        embedding = embedder.encode(chunk)
+        client.upsert(
+            collection_name=collection_name,
+            points=[
+                models.PointStruct(
+                    id=next_id + i,
+                    vector=embedding.tolist(),
+                    payload={"text": chunk, "source": file.filename, "chunk": i}
+                )
+            ]
+        )
+    msg = f"Uploaded and indexed {len(chunks)} chunks from '{file.filename}' into '{collection_name}'."
+    return templates.TemplateResponse("upload_pdf.html", {"request": request, "collections": collections, "message": msg, "success": True, "chunks": len(chunks), "filename": file.filename})
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000) 
