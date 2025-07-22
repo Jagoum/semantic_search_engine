@@ -13,10 +13,10 @@ Requirements:
 - requests, qdrant_client, sentence-transformers, groq, pypdf, fastapi, uvicorn, jinja2, python-multipart, python-dotenv
 """
 
-from fastapi import FastAPI, Request, Form, UploadFile, Cookie, Response
+from fastapi import FastAPI, Request, Form, UploadFile, Cookie
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 import uvicorn
 from dotenv import load_dotenv
 import os
@@ -40,6 +40,15 @@ app = FastAPI(title="Semantic Search System")
 # Setup templates and static files
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+from datetime import datetime
+def datetimeformat(value, format="%Y-%m-%d %H:%M:%S"):
+    try:
+        return datetime.fromtimestamp(int(value)).strftime(format)
+    except Exception:
+        return value
+
+templates.env.filters['datetimeformat'] = datetimeformat
 
 # Initialize Qdrant, embedding, and Groq clients
 client = QdrantClient(
@@ -67,7 +76,7 @@ def search_and_query_groq(query: str, collection_name: str = "knowledge_base"):
     search_result = client.search(
         collection_name=collection_name,
         query_vector=query_embedding.tolist(),
-        limit=5
+        limit=10
     )
     # Build context from search results
     context = "Based on the following relevant documents:\n\n"

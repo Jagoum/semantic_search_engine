@@ -78,65 +78,65 @@ from groq import Groq
 
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-def query_groq(prompt):
-    """
-    Query Groq AI's LLM to answer a prompt.
+# def query_groq(prompt):
+#     """
+#     Query Groq AI's LLM to answer a prompt.
 
-    Args:
-        prompt (str): The input prompt/question for the model.
+#     Args:
+#         prompt (str): The input prompt/question for the model.
 
-    Returns:
-        str: The generated response from the model.
-    """
-    response = groq_client.chat.completions.create(
-        model="llama3-8b-8192",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=512,
-        temperature=0.7,
-    )
-    content = response.choices[0].message.content
-    print(content)
-    return content
+#     Returns:
+#         str: The generated response from the model.
+#     """
+#     response = groq_client.chat.completions.create(
+#         model="llama3-8b-8192",
+#         messages=[{"role": "user", "content": prompt}],
+#         max_tokens=512,
+#         temperature=0.7,
+#     )
+#     content = response.choices[0].message.content
+#     print(content)
+#     return content
 
-def query_groq_with_context(prompt, search_results, max_tokens=200):
-    """
-    Query Groq AI's LLM using vector search results as context.
+# # def query_groq_with_context(prompt, search_results, max_tokens=200):
+# #     """
+# #     Query Groq AI's LLM using vector search results as context.
 
-    Args:
-        prompt (str): The input prompt/question for the model.
-        search_results (list): Results from vector search in Qdrant.
-        max_tokens (int): Maximum tokens for the response.
+# #     Args:
+# #         prompt (str): The input prompt/question for the model.
+# #         search_results (list): Results from vector search in Qdrant.
+# #         max_tokens (int): Maximum tokens for the response.
 
-    Returns:
-        str: The generated response from the model.
-    """
-    # Build context from search results
-    context = "Based on the following relevant documents:\n\n"
-    for i, hit in enumerate(search_results, 1):
-        if hit.payload:
-            context += f"{i}. {hit.payload.get('text', 'N/A')}\n"
+# #     Returns:
+# #         str: The generated response from the model.
+# #     """
+# #     # Build context from search results
+# #     context = "Based on the following relevant documents:\n\n"
+# #     for i, hit in enumerate(search_results, 1):
+# #         if hit.payload:
+# #             context += f"{i}. {hit.payload.get('text', 'N/A')}\n"
     
-    # Create the full prompt with context
-    full_prompt = f"{context}\n\nQuestion: {prompt}\n\nAnswer based on the documents above:"
+# #     # Create the full prompt with context
+# #     full_prompt = f"{context}\n\nQuestion: {prompt}\n\nAnswer based on the documents above:"
     
-    response = groq_client.chat.completions.create(
-        model="llama3-8b-8192",
-        messages=[{"role": "user", "content": full_prompt}],
-        max_tokens=max_tokens,
-        temperature=0.3,  # Lower temperature for more focused responses
-    )
-    content = response.choices[0].message.content
-    print("=" * 50)
-    print("GROQ RESPONSE (using vector search results):")
-    print("=" * 50)
-    print(content)
-    print("=" * 50)
-    return content
+# #     response = groq_client.chat.completions.create(
+# #         model="llama3-8b-8192",
+# #         messages=[{"role": "user", "content": full_prompt}],
+# #         max_tokens=max_tokens,
+# #         temperature=0.3,  # Lower temperature for more focused responses
+# #     )
+# #     content = response.choices[0].message.content
+# #     print("=" * 50)
+# #     print("GROQ RESPONSE (using vector search results):")
+# #     print("=" * 50)
+# #     print(content)
+# #     print("=" * 50)
+# #     return content
 
-# Example prompt for the language model
-prompt = input("Enter your prompt: ")
+# # # Example prompt for the language model
+# prompt = input("Enter your prompt: ")
 # Query the Groq AI model using vector search results as context
-query_groq_with_context(prompt, search_result)
+# query_groq_with_context(prompt, search_result)
 
 # prompt = """
 # What tools should I need to use to build a web service using vector embeddings for search?

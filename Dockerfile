@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y build-essential gcc && rm -rf /var/lib/
 
 # Install Python dependencies
 COPY requirements.txt ./
-RUN pip install --upgrade pip && pip install --prefix=/install -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu --retries 10 --timeout 120 --prefix=/install -r requirements.txt
 
 # --- Final stage (minimal image) ---
 FROM python:3.11-slim
