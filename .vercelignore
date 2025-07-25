@@ -1,0 +1,35 @@
+# Ignore Python virtual environment
+vectors-venv/
+venv/
+.venv/
+env/
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore IDE and editor specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore build artifacts
+build/
+dist/
+*.egg-info/
+
+# Ignore other common files
+.git/
+.env
+*.DS_Store
+
+# Ignore CLI scripts and local deployment files
+index.py
+index_qdrant.py
+Dockerfile
+docker-compose.yml
+ARCHITECTURE.md
+ARCHITECTURE_CLI_WEB.md
